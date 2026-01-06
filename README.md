@@ -8,6 +8,7 @@ Main features:
 - Print multiple cards at once with configurable limits.
 - Pickup protection so only the owner can use/remove their printer.
 - Customizable preview size and image host rules.
+- Front‑only/two‑sided toggle.
 
 Fully integrated with ox_target + ox_inventory.
 
