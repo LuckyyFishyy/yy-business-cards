@@ -63,3 +63,11 @@ Download Instructions:
     },
   
 - Add the images from the png folder into ox_inventory.
+
+ADDITIONAL TERMS FOR FIVEM/CFX.RE DISTRIBUTION:
+
+1. This resource may be distributed via CFX.re Asset Escrow system
+2. Commercial use is permitted with proper attribution
+3. Modified versions must maintain original credits
+4. Support is provided on a best-effort basis
+5. No warranty is provided for production use
