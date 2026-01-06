@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Business Cards</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <div id="bc-panel" class="panel hidden">
+        <div class="panel-header">
+            <div class="panel-title">Business Cards</div>
+            <button id="bc-close" class="btn ghost">Close</button>
+        </div>
+        <div class="panel-subtitle">Save a photo, then choose how many cards to print.</div>
+
+        <div class="panel-section">
+            <div class="section-title">Photo Link</div>
+            <div class="input-row">
+                <input id="bc-photo-url" class="input" type="text" placeholder="https://..." />
+                <button id="bc-save-photo" class="btn primary">Save</button>
+            </div>
+            <div class="preview">
+                <img id="bc-photo-preview" src="" alt="Preview" />
+                <div id="bc-photo-placeholder" class="preview-placeholder">No photo saved</div>
+            </div>
+        </div>
+
+        <div class="panel-section">
+            <div class="section-title">Print Cards</div>
+            <div class="input-row">
+                <input id="bc-amount" class="input" type="number" min="1" value="1" />
+                <button id="bc-print" class="btn primary">Print</button>
+            </div>
+            <div id="bc-status" class="status">Ready</div>
+        </div>
+    </div>
+
+    <div id="bc-placement" class="placement hidden">
+        <div class="placement-title">Place Printer</div>
+        <div class="placement-text">Enter: Place • Backspace: Cancel • ←/→: Rotate</div>
+    </div>
+
+    <div id="bc-card" class="card-preview hidden">
+        <img id="bc-card-image" src="" alt="Business Card" />
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
