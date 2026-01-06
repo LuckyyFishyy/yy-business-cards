@@ -16,6 +16,11 @@
 
         <div class="panel-section">
             <div class="section-title">Photo Link</div>
+            <div id="bc-side-toggle" class="side-toggle">
+                <span class="side-label">Editing:</span>
+                <button id="bc-side-front" class="btn ghost active" type="button">Front</button>
+                <button id="bc-side-back" class="btn ghost" type="button">Back</button>
+            </div>
             <div class="input-row">
                 <input id="bc-photo-url" class="input" type="text" placeholder="https://..." />
                 <button id="bc-save-photo" class="btn primary">Save</button>
@@ -41,9 +46,14 @@
         <div class="placement-text">Enter: Place • Backspace: Cancel • ←/→: Rotate</div>
     </div>
 
-    <div id="bc-card" class="card-preview hidden">
-        <img id="bc-card-image" src="" alt="Business Card" />
-    </div>
+        <div id="bc-card" class="card-preview hidden">
+            <img id="bc-card-front" src="" alt="Business Card Front" />
+            <img id="bc-card-back" class="hidden" src="" alt="Business Card Back" />
+            <div id="bc-card-controls" class="card-controls">
+                <button id="bc-card-flip" class="btn ghost" type="button">Flip</button>
+                <button id="bc-card-close" class="btn ghost" type="button">Close</button>
+            </div>
+        </div>
 
     <script src="script.js"></script>
 </body>
