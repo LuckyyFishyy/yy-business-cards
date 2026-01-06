@@ -27,6 +27,11 @@ Config.CardPreview = {
     Height = 210
 }
 
+Config.CardSides = {
+    EnableBack = true,
+    FrontOnlyAutoCloseMs = 4000
+}
+
 Config.ImageRules = {
     RequireHttps = true,
     RestrictHosts = false,

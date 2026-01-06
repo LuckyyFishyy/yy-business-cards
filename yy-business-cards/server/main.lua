@@ -3,6 +3,7 @@ local Config = Config or {}
 local printers = {}
 local printersLoaded = false
 local loadPrinters
+local backEnabled = not (Config.CardSides and Config.CardSides.EnableBack == false)
 
 local function notify(src, message, nType)
     TriggerClientEvent('yy-bcards:client:Notify', src, message, nType)
@@ -73,10 +74,17 @@ local function buildPrinters(rows)
         local coords = json.decode(row.coords)
         local heading = tonumber(row.heading) or 0.0
         local photoState = nil
+        local backPhotoState = nil
         if row.photo_state then
             local ok, decoded = pcall(json.decode, row.photo_state)
             if ok and type(decoded) == 'table' then
                 photoState = decoded
+            end
+        end
+        if row.back_photo_state then
+            local ok, decoded = pcall(json.decode, row.back_photo_state)
+            if ok and type(decoded) == 'table' then
+                backPhotoState = decoded
             end
         end
         if coords and coords.h then
@@ -90,7 +98,9 @@ local function buildPrinters(rows)
             coords = coords,
             heading = heading,
             imageUrl = row.image_url,
-            photoState = photoState
+            photoState = photoState,
+            backImageUrl = row.back_image_url,
+            backPhotoState = backPhotoState
         }
     end
     return result
@@ -116,11 +126,15 @@ local function initializeDatabase()
             coords JSON NOT NULL,
             heading FLOAT NOT NULL DEFAULT 0,
             image_url TEXT NULL,
+            back_image_url TEXT NULL,
             photo_state TEXT NULL,
+            back_photo_state TEXT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ]], {}, function()
-        MySQL.execute('ALTER TABLE business_printers ADD COLUMN IF NOT EXISTS photo_state TEXT NULL', {}, function()
+        MySQL.execute('ALTER TABLE business_printers ADD COLUMN IF NOT EXISTS photo_state TEXT NULL', {}, function() end)
+        MySQL.execute('ALTER TABLE business_printers ADD COLUMN IF NOT EXISTS back_image_url TEXT NULL', {}, function() end)
+        MySQL.execute('ALTER TABLE business_printers ADD COLUMN IF NOT EXISTS back_photo_state TEXT NULL', {}, function()
             if loadPrinters then
                 loadPrinters()
             end
@@ -183,14 +197,18 @@ RegisterNetEvent('yy-bcards:server:PlacePrinter', function(coords, heading)
         coords = coordsData,
         heading = safeHeading,
         imageUrl = nil,
-        photoState = nil
+        photoState = nil,
+        backImageUrl = nil,
+        backPhotoState = nil
     }
 
-    MySQL.insert('INSERT INTO business_printers (id, owner, coords, heading, image_url, photo_state) VALUES (?, ?, ?, ?, ?, ?)', {
+    MySQL.insert('INSERT INTO business_printers (id, owner, coords, heading, image_url, back_image_url, photo_state, back_photo_state) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', {
         id,
         owner,
         json.encode(coordsData),
         safeHeading,
+        nil,
+        nil,
         nil,
         nil
     })
@@ -242,11 +260,13 @@ RegisterNetEvent('yy-bcards:server:OpenPrinter', function(printerId)
     TriggerClientEvent('yy-bcards:client:OpenUI', src, {
         id = printerId,
         imageUrl = printer.imageUrl or '',
-        photoState = printer.photoState
+        photoState = printer.photoState,
+        backImageUrl = backEnabled and (printer.backImageUrl or '') or '',
+        backPhotoState = backEnabled and printer.backPhotoState or nil
     })
 end)
 
-RegisterNetEvent('yy-bcards:server:SavePhoto', function(printerId, url, photoState)
+RegisterNetEvent('yy-bcards:server:SavePhoto', function(printerId, payload, photoState)
     local src = source
     local player = exports.qbx_core:GetPlayer(src)
     if not player then return end
@@ -257,7 +277,21 @@ RegisterNetEvent('yy-bcards:server:SavePhoto', function(printerId, url, photoSta
         return
     end
 
-    local cleanUrl = sanitizeUrl(url)
+    local data = payload
+    if type(payload) ~= 'table' then
+        data = { side = 'front', url = payload, photoState = photoState }
+    end
+
+    if not data or not data.url then
+        notify(src, 'Invalid image link.', 'error')
+        return
+    end
+
+    local side = data.side == 'back' and 'back' or 'front'
+    if not backEnabled then
+        side = 'front'
+    end
+    local cleanUrl = sanitizeUrl(data.url)
     if not cleanUrl then
         notify(src, 'Invalid image link.', 'error')
         return
@@ -267,15 +301,23 @@ RegisterNetEvent('yy-bcards:server:SavePhoto', function(printerId, url, photoSta
         return
     end
 
-    local cleanState = sanitizePhotoState(photoState)
-    printer.imageUrl = cleanUrl
-    printer.photoState = cleanState
-    MySQL.execute('UPDATE business_printers SET image_url = ?, photo_state = ? WHERE id = ?', {
-        cleanUrl,
-        cleanState and json.encode(cleanState) or nil,
+    local cleanState = sanitizePhotoState(data.photoState)
+    if side == 'back' then
+        printer.backImageUrl = cleanUrl
+        printer.backPhotoState = cleanState
+    else
+        printer.imageUrl = cleanUrl
+        printer.photoState = cleanState
+    end
+
+    MySQL.execute('UPDATE business_printers SET image_url = ?, back_image_url = ?, photo_state = ?, back_photo_state = ? WHERE id = ?', {
+        printer.imageUrl,
+        printer.backImageUrl,
+        printer.photoState and json.encode(printer.photoState) or nil,
+        printer.backPhotoState and json.encode(printer.backPhotoState) or nil,
         printerId
     })
-    TriggerClientEvent('yy-bcards:client:PhotoSaved', src, cleanUrl)
+    TriggerClientEvent('yy-bcards:client:PhotoSaved', src, cleanUrl, side)
     notify(src, 'Photo saved to printer.', 'success')
 end)
 
@@ -310,7 +352,22 @@ RegisterNetEvent('yy-bcards:server:PrintCards', function(printerId, amount, phot
         return
     end
 
-    local cleanState = sanitizePhotoState(photoState) or printer.photoState
+    local frontState = nil
+    local backState = nil
+    if type(photoState) == 'table' and (photoState.front or photoState.back) then
+        frontState = sanitizePhotoState(photoState.front)
+        if backEnabled then
+            backState = sanitizePhotoState(photoState.back)
+        end
+    else
+        frontState = sanitizePhotoState(photoState)
+    end
+    frontState = frontState or printer.photoState
+    if backEnabled then
+        backState = backState or printer.backPhotoState
+    else
+        backState = nil
+    end
 
     exports.ox_inventory:RemoveItem(src, Config.BlankCardItem, count)
     local charinfo = player.PlayerData.charinfo or {}
@@ -320,11 +377,16 @@ RegisterNetEvent('yy-bcards:server:PrintCards', function(printerId, amount, phot
         label = player.PlayerData.citizenid
     end
 
-    exports.ox_inventory:AddItem(src, Config.BusinessCardItem, count, {
+    local metadata = {
         photoUrl = imageUrl,
-        photoState = cleanState,
+        photoState = frontState,
         owner = label
-    })
+    }
+    if backEnabled and printer.backImageUrl and printer.backImageUrl ~= '' then
+        metadata.backUrl = printer.backImageUrl
+        metadata.backPhotoState = backState
+    end
+    exports.ox_inventory:AddItem(src, Config.BusinessCardItem, count, metadata)
 
     notify(src, ('Printed %d business cards.'):format(count), 'success')
 end)

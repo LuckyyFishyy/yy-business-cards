@@ -10,6 +10,8 @@ local cardTimer = nil
 local lastHitCoords = nil
 local lastPlaceCoords = nil
 local lastPlaceHeading = nil
+local enableBackSide = not (Config.CardSides and Config.CardSides.EnableBack == false)
+local frontOnlyCloseMs = (Config.CardSides and Config.CardSides.FrontOnlyAutoCloseMs) or 4000
 
 local function notify(message, nType)
     if lib and lib.notify then
@@ -73,15 +75,20 @@ local function getCameraRight()
     return vector3(math.cos(z), math.sin(z), 0.0)
 end
 
-local function openUI(printerId, imageUrl, photoState)
+local function openUI(printerId, imageUrl, photoState, backImageUrl, backPhotoState)
     if nuiOpen then return end
     currentPrinterId = printerId
     nuiOpen = true
     SendNUIMessage({
         action = 'open',
         printerId = printerId,
+        enableBack = enableBackSide,
         imageUrl = imageUrl or '',
+        frontImageUrl = imageUrl or '',
+        backImageUrl = enableBackSide and (backImageUrl or '') or '',
         photoState = photoState,
+        frontPhotoState = photoState,
+        backPhotoState = enableBackSide and backPhotoState or nil,
         maxAmount = (Config.Printing and Config.Printing.MaxAmount) or 50
     })
     SetNuiFocus(true, true)
@@ -258,11 +265,11 @@ end)
 
 RegisterNetEvent('yy-bcards:client:OpenUI', function(data)
     if not data then return end
-    openUI(data.id, data.imageUrl, data.photoState)
+    openUI(data.id, data.imageUrl, data.photoState, data.backImageUrl, data.backPhotoState)
 end)
 
-RegisterNetEvent('yy-bcards:client:PhotoSaved', function(url)
-    SendNUIMessage({ action = 'photoSaved', imageUrl = url })
+RegisterNetEvent('yy-bcards:client:PhotoSaved', function(url, side)
+    SendNUIMessage({ action = 'photoSaved', imageUrl = url, side = side })
 end)
 
 RegisterNetEvent('yy-bcards:client:Notify', function(message, nType)
@@ -274,9 +281,22 @@ RegisterNUICallback('bc_close', function(_, cb)
     cb({})
 end)
 
+RegisterNUICallback('bc_close_card', function(_, cb)
+    SetNuiFocus(false, false)
+    cb({})
+end)
+
 RegisterNUICallback('bc_save_photo', function(data, cb)
     if currentPrinterId and data and data.url then
-        TriggerServerEvent('yy-bcards:server:SavePhoto', currentPrinterId, data.url, data.photoState)
+        local side = data.side
+        if not enableBackSide then
+            side = 'front'
+        end
+        TriggerServerEvent('yy-bcards:server:SavePhoto', currentPrinterId, {
+            side = side,
+            url = data.url,
+            photoState = data.photoState
+        })
     end
     cb({})
 end)
@@ -296,28 +316,48 @@ end)
 exports('useBusinessCard', function(item, slot)
     local meta = (slot and slot.metadata) or (item and (item.metadata or item.meta)) or {}
     local url = meta.photoUrl or meta.imageurl or meta.imageUrl or meta.image or meta.url or ''
+    local backUrl = meta.backUrl or meta.back_url or meta.backImageUrl or meta.back_image_url or meta.back_image or meta.back or ''
     if url ~= '' and not url:match('^https?://') then
         url = ''
+    end
+    if backUrl ~= '' and not backUrl:match('^https?://') then
+        backUrl = ''
     end
     if url == '' then
         notify('This card has no photo.', 'error')
         return false
     end
+    if not enableBackSide then
+        backUrl = ''
+    end
+    local backState = enableBackSide and (meta.backPhotoState or meta.back_photo_state) or nil
     if cardTimer then
         ClearTimeout(cardTimer)
         cardTimer = nil
     end
     SendNUIMessage({
         action = 'showCard',
+        enableBack = enableBackSide,
         imageUrl = url,
+        frontImageUrl = url,
+        backImageUrl = backUrl,
         photoState = meta.photoState or meta.photo_state,
+        frontPhotoState = meta.photoState or meta.photo_state,
+        backPhotoState = backState,
         width = (Config.CardPreview and Config.CardPreview.Width) or 200,
         height = (Config.CardPreview and Config.CardPreview.Height) or 120
     })
-    cardTimer = SetTimeout(4000, function()
-        SendNUIMessage({ action = 'hideCard' })
-        cardTimer = nil
-    end)
+    if enableBackSide then
+        SetNuiFocus(true, true)
+    else
+        SetNuiFocus(false, false)
+        if frontOnlyCloseMs and frontOnlyCloseMs > 0 then
+            cardTimer = SetTimeout(frontOnlyCloseMs, function()
+                SendNUIMessage({ action = 'hideCard' })
+                cardTimer = nil
+            end)
+        end
+    end
     return true
 end)
 

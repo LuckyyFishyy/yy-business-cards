@@ -4,5 +4,8 @@ CREATE TABLE IF NOT EXISTS business_printers (
     coords JSON NOT NULL,
     heading FLOAT NOT NULL DEFAULT 0,
     image_url TEXT NULL,
+    back_image_url TEXT NULL,
+    photo_state TEXT NULL,
+    back_photo_state TEXT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
